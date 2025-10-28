@@ -1,78 +1,122 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import api from "./api";
 
-export default function AddCart() {
-  const [items, setItems] = useState([]);
-  const [name, setName] = useState('');
-  const [cartId, setCartId] = useState('');
-  const [selectedItems, setSelectedItems] = useState([]);
+function AddCart() {
+  const [userName, setUserName] = useState("");
 
-  useEffect(() => {
-    axios.get('https://e-clothingfrontend.onrender.com/items').then(r => {
-      const list = r.data.map(i => ({ ...i, quantity: 0 }));
-      setItems(list);
-    });
-  }, []);
+  const items = [
+    { name: "shirt", price: 500 },
+    { name: "tshirt", price: 200 },
+    { name: "pant", price: 700 },
+    { name: "saree", price: 1500 },
+    { name: "chudidhar", price: 750 },
+  ];
 
-  const handleQuantityChange = (id, quantity) => {
-    setItems(prev =>
-      prev.map(it =>
-        it.id === id ? { ...it, quantity: Number(quantity) } : it
-      )
-    );
+  const [selectedItems, setSelectedItems] = useState({});
+
+  const handleItemToggle = (itemName) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [itemName]: prev[itemName]
+        ? undefined // unselect item
+        : { quantity: 1 }, // select with default qty 1
+    }));
   };
 
-  const createCart = async () => {
-    const filtered = items.filter(it => it.quantity > 0);
-    if (!cartId || !name) return alert('Please enter name and cart ID');
-    if (filtered.length === 0) return alert('Select at least one item');
+  const handleQuantityChange = (itemName, quantity) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [itemName]: { quantity: Number(quantity) },
+    }));
+  };
 
-    try {
-      await axios.post('https://e-clothingfrontend.onrender.com/cart', {
-        id: cartId,
-        name,
-        items: filtered.map(it => ({ itemId: it.id, quantity: it.quantity }))
-      });
-      alert('Cart added successfully!');
-      setCartId('');
-      setName('');
-      setItems(items.map(i => ({ ...i, quantity: 0 })));
-    } catch (e) {
-      alert('Error adding cart');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!userName) {
+      alert("Please enter your name.");
+      return;
     }
+
+    const selected = Object.entries(selectedItems).filter(
+      ([, value]) => value !== undefined
+    );
+
+    if (selected.length === 0) {
+      alert("Please select at least one item.");
+      return;
+    }
+
+    // Add each selected item to backend
+    for (const [itemName, { quantity }] of selected) {
+      const basePrice = items.find((i) => i.name === itemName).price;
+      const totalPrice = basePrice * quantity;
+      await api.post("/cart", {
+        name: userName,
+        item: itemName,
+        quantity,
+        price: totalPrice,
+      });
+    }
+
+    alert("All selected items added to cart successfully!");
+    setUserName("");
+    setSelectedItems({});
   };
 
   return (
-    <div>
+    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
       <h2>Add Cart</h2>
-      <input
-        placeholder="Cart ID"
-        value={cartId}
-        onChange={e => setCartId(e.target.value)}
-      />
-      <input
-        placeholder="Your Name"
-        value={name}
-        onChange={e => setName(e.target.value)}
-      />
 
-      <h3>Select Items</h3>
-      <ul>
-        {items.map(i => (
-          <li key={i.id}>
-            {i.name} - Rs.{i.price}{' '}
-            <input
-              type="number"
-              min="0"
-              value={i.quantity}
-              onChange={e => handleQuantityChange(i.id, e.target.value)}
-              style={{ width: '60px' }}
-            />
-          </li>
+      <form onSubmit={handleSubmit}>
+        <label><strong>User Name:</strong></label><br />
+        <input
+          type="text"
+          placeholder="Enter Name"
+          value={userName}
+          onChange={(e) => setUserName(e.target.value)}
+          required
+        />
+        <br /><br />
+
+        <h4>Select Items:</h4>
+        {items.map((item) => (
+          <div key={item.name}>
+            <label>
+              <input
+                type="checkbox"
+                checked={!!selectedItems[item.name]}
+                onChange={() => handleItemToggle(item.name)}
+              />
+              {item.name.toUpperCase()} - ₹{item.price}
+            </label>
+
+            {selectedItems[item.name] && (
+              <>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedItems[item.name]?.quantity || 1}
+                  onChange={(e) =>
+                    handleQuantityChange(item.name, e.target.value)
+                  }
+                  style={{ marginLeft: "10px" }}
+                />
+                <label> Qty</label>
+              </>
+            )}
+          </div>
         ))}
-      </ul>
 
-      <button onClick={createCart}>Add Cart</button>
+        <br />
+        <button type="submit">Add Selected Items to Cart</button>
+      </form>
+
+      <br />
+      <Link to="/">Back to Home</Link>
     </div>
   );
 }
+
+export default AddCart;

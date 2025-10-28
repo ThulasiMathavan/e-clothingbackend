@@ -1,120 +1,86 @@
-// client/src/pages/UpdateCart.js
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import api from "./api";
 
-export default function UpdateCart() {
+function UpdateCart() {
   const [cartId, setCartId] = useState("");
   const [cart, setCart] = useState(null);
-  const [storeItems, setStoreItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+  const [newItem, setNewItem] = useState("");
+  const [newQty, setNewQty] = useState(1);
 
-  useEffect(() => {
-    // load available store items (id, name, price)
-    axios
-      .get("http://localhost:4000/items")
-      .then((r) => setStoreItems(r.data || []))
-      .catch((e) => {
-        console.error("Failed to load items", e);
-        setStoreItems([]);
-      });
-  }, []);
+  // predefined items with prices
+  const itemsList = {
+    shirt: 500,
+    tshirt: 200,
+    pant: 700,
+    saree: 1500,
+    chudidhar: 750,
+  };
 
-  const loadCart = async () => {
-    setMsg("");
-    setCart(null);
-    const idTrim = cartId.trim();
-    if (!idTrim) {
-      setMsg("Please enter a Cart ID to load.");
-      return;
-    }
-
-    setLoading(true);
+  // fetch cart by ID
+  const fetchCart = async () => {
     try {
-      const res = await axios.get(`https://e-clothingfrontend.onrender.com/cart/${encodeURIComponent(idTrim)}`);
-      // Ensure items array exists and quantities are numbers
-      const normalized = (res.data.items || []).map((it) => ({
-        itemId: it.itemId,
-        quantity: Number(it.quantity) || 0,
-      }));
-      setCart({ ...res.data, items: normalized });
-      setMsg("");
+      const res = await api.get(`/cart/${cartId}`);
+      setCart(res.data);
+      setError("");
     } catch (err) {
       console.error(err);
-      const serverMsg = err?.response?.data?.error;
-      setMsg(serverMsg || "Cart not found or server error.");
-    } finally {
-      setLoading(false);
+      setError("No cart found with that ID. Try adding one first.");
+      setCart(null);
     }
   };
 
-  const changeQty = (itemId, qty) => {
-    if (!cart) return;
-    const q = Number(qty);
-    if (isNaN(q) || q < 0) return;
-    setCart((c) => ({
-      ...c,
-      items: c.items.map((it) => (it.itemId === itemId ? { ...it, quantity: q } : it)),
-    }));
+  // change quantity of existing item
+  const changeQuantity = (index, quantity) => {
+    const updated = { ...cart };
+    updated.items[index].quantity = Number(quantity);
+    updated.items[index].price =
+      updated.items[index].basePrice * Number(quantity);
+    setCart(updated);
   };
 
-  const removeItem = (itemId) => {
-    if (!cart) return;
-    setCart((c) => ({ ...c, items: c.items.filter((it) => it.itemId !== itemId) }));
+  // remove item
+  const removeItem = (index) => {
+    const updated = { ...cart };
+    updated.items.splice(index, 1);
+    setCart(updated);
   };
 
-  const addItem = (itemId) => {
-    if (!cart) return;
-    if (!itemId) return;
-    if (cart.items.find((it) => it.itemId === itemId)) {
-      setMsg("Item already in cart. Change quantity instead.");
+  // add a new item
+  const addItem = () => {
+    if (!newItem || !itemsList[newItem]) {
+      alert("Please select a valid item.");
       return;
     }
-    setCart((c) => ({ ...c, items: [...c.items, { itemId, quantity: 1 }] }));
-    setMsg("");
-  };
-
-  const clientTotal = () => {
-    if (!cart) return 0;
-    return cart.items.reduce((sum, it) => {
-      const p = storeItems.find((s) => s.id === it.itemId)?.price || 0;
-      return sum + p * (Number(it.quantity) || 0);
-    }, 0);
-  };
-
-  const saveChanges = async () => {
-    if (!cart) {
-      setMsg("Load a cart first.");
+    const existing = cart.items.find((i) => i.item === newItem);
+    if (existing) {
+      alert("Item already exists. Try increasing quantity instead.");
       return;
     }
-    // Prepare payload: only include items with quantity > 0
-    const payloadItems = cart.items
-      .map((it) => ({ itemId: it.itemId, quantity: Number(it.quantity) || 0 }))
-      .filter((it) => it.quantity > 0);
 
-    if (payloadItems.length === 0) {
-      // If user removed all items, ask confirm or allow empty (server removes 0-qty items)
-      if (!window.confirm("This will remove all items from the cart (cart will become empty). Proceed?")) {
-        return;
-      }
-    }
+    const newEntry = {
+      item: newItem,
+      quantity: Number(newQty),
+      basePrice: itemsList[newItem],
+      price: itemsList[newItem] * Number(newQty),
+    };
 
+    const updated = { ...cart };
+    updated.items.push(newEntry);
+    setCart(updated);
+    setNewItem("");
+    setNewQty(1);
+  };
+
+  // save updated cart to backend
+  const saveUpdates = async () => {
     try {
-      setLoading(true);
-      const res = await axios.put(`https://e-clothingfrontend.onrender.com/cart/${encodeURIComponent(cartId)}`, {
-        items: payloadItems,
-      });
-      setCart({
-        ...res.data,
-        items: (res.data.items || []).map((it) => ({ itemId: it.itemId, quantity: Number(it.quantity) || 0 })),
-      });
-      setMsg("Cart updated successfully.");
+      await api.put(`/cart/${cartId}`, cart);
+      alert("Cart updated successfully!");
     } catch (err) {
       console.error(err);
-      const serverMsg = err?.response?.data?.error;
-      setMsg(serverMsg || "Failed to update cart.");
-    } finally {
-      setLoading(false);
+      alert("Error saving updates.");
     }
   };
 
@@ -122,100 +88,68 @@ export default function UpdateCart() {
     <div>
       <h2>Update Cart</h2>
 
-      <div style={{ marginBottom: 12 }}>
-        <input
-          placeholder="Cart ID"
-          value={cartId}
-          onChange={(e) => setCartId(e.target.value)}
-          style={{ marginRight: 8 }}
-        />
-        <button onClick={loadCart} disabled={loading}>
-          {loading ? "Loading..." : "Load Cart"}
-        </button>
-      </div>
+      <label>
+        <strong>Enter Cart ID:</strong>
+      </label>
+      <input
+        type="text"
+        value={cartId}
+        onChange={(e) => setCartId(e.target.value)}
+        style={{ marginLeft: "10px" }}
+      />
+      <button onClick={fetchCart}>Fetch Cart</button>
 
-      {msg && <div style={{ color: msg.includes("success") ? "green" : "crimson", marginBottom: 12 }}>{msg}</div>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
-      {cart ? (
-        <div style={{ border: "1px solid #ddd", padding: 12, maxWidth: 700 }}>
-          <div style={{ marginBottom: 8 }}>
-            <strong>{cart.name}</strong> — Cart ID: {cart.id}
-          </div>
-
-          <table border="1" cellPadding="6" style={{ width: "100%", marginBottom: 12 }}>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th>Price</th>
-                <th>Quantity (0 to remove)</th>
-                <th>Line total</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cart.items.length === 0 ? (
-                <tr>
-                  <td colSpan="5" style={{ textAlign: "center" }}>
-                    No items in cart
-                  </td>
-                </tr>
-              ) : (
-                cart.items.map((it) => {
-                  const store = storeItems.find((s) => s.id === it.itemId) || { name: it.itemId, price: 0 };
-                  const lineTotal = (Number(it.quantity) || 0) * (store.price || 0);
-                  return (
-                    <tr key={it.itemId}>
-                      <td>{store.name}</td>
-                      <td>Rs. {store.price}</td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          value={it.quantity}
-                          onChange={(e) => changeQty(it.itemId, e.target.value)}
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>Rs. {lineTotal}</td>
-                      <td>
-                        <button onClick={() => removeItem(it.itemId)}>Remove</button>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-
-          <div style={{ marginBottom: 12 }}>
-            <strong>Client Total Preview: Rs. {clientTotal()}</strong>
-          </div>
-
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ marginRight: 8 }}>Add item: </label>
-            <select onChange={(e) => addItem(e.target.value)} defaultValue="">
-              <option value="">-- select --</option>
-              {storeItems
-                .filter((s) => !cart.items.find((it) => it.itemId === s.id))
-                .map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} — Rs.{s.price}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          <div>
-            <button onClick={saveChanges} disabled={loading}>
-              {loading ? "Saving..." : "Save Changes"}
-            </button>
-          </div>
-        </div>
-      ) : (
+      {cart && (
         <div>
-          <p>Load a cart by entering its ID above to edit items (add, change quantity, remove).</p>
+          <h3>User: {cart.name}</h3>
+          <ul>
+            {cart.items.map((item, index) => (
+              <li key={index}>
+                <strong>{item.item.toUpperCase()}</strong> — ₹{item.price} — Qty:{" "}
+                <input
+                  type="number"
+                  min="1"
+                  value={item.quantity}
+                  onChange={(e) => changeQuantity(index, e.target.value)}
+                  style={{ width: "60px" }}
+                />
+                <button onClick={() => removeItem(index)}>Remove</button>
+              </li>
+            ))}
+          </ul>
+
+          <h4>Add New Item:</h4>
+          <select
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+          >
+            <option value="">--Select--</option>
+            {Object.keys(itemsList).map((it) => (
+              <option key={it} value={it}>
+                {it.toUpperCase()} - ₹{itemsList[it]}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            min="1"
+            value={newQty}
+            onChange={(e) => setNewQty(e.target.value)}
+            style={{ width: "60px", marginLeft: "10px" }}
+          />
+          <button onClick={addItem}>Add Item</button>
+
+          <br /><br />
+          <button onClick={saveUpdates}>Save Cart Updates</button>
         </div>
       )}
+
+      <br />
+      <Link to="/">Back to Home</Link>
     </div>
   );
 }
+
+export default UpdateCart;

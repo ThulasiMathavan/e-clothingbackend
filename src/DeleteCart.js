@@ -1,36 +1,29 @@
-// client/src/pages/DeleteCart.js
-import React, { useState } from 'react';
-import axios from 'axios';
+import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import api from "./api";
 
-export default function DeleteCart() {
-  const [cartId, setCartId] = useState('');
+function DeleteCart() {
+  const [id, setId] = useState("");
 
-  const deleteCart = async () => {
-    if (!cartId.trim()) {
-      alert("Please enter a Cart ID");
-      return;
-    }
-
-    try {
-      await axios.delete(`https://e-clothingfrontend.onrender.com/cart/${cartId}`);
-      alert("Cart deleted successfully!");
-      setCartId('');
-    } catch (err) {
-      alert(err?.response?.data?.error || "Cart not found");
-    }
+  const handleDelete = async (e) => {
+    e.preventDefault();
+    await api.delete(`/cart/${id}`);
+    alert("Cart deleted successfully!");
+    setId("");
   };
 
   return (
     <div>
       <h2>Delete Cart</h2>
-      <input
-        type="text"
-        placeholder="Enter Cart ID"
-        value={cartId}
-        onChange={(e) => setCartId(e.target.value)}
-        style={{ marginRight: "8px" }}
-      />
-      <button onClick={deleteCart}>Delete</button>
+      <form onSubmit={handleDelete}>
+        <input type="text" placeholder="Enter Cart ID" value={id} onChange={(e) => setId(e.target.value)} required />
+        <button type="submit">Delete</button>
+      </form>
+
+      <br />
+      <Link to="/">Back to Home</Link>
     </div>
   );
 }
+
+export default DeleteCart;

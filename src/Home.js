@@ -1,57 +1,88 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+ 
+import api from "./api";
 
-export default function Home() {
-  const [users, setUsers] = useState([]);
+function Home() {
+  const [carts, setCarts] = useState([]);
 
-  const loadUsers = async () => {
+  // Fetch all cart details
+  const fetchCarts = async () => {
     try {
-      const res = await axios.get("https://e-clothingfrontend.onrender.com/users");
-      setUsers(res.data);
+      const res = await api.get("/cart");
+      setCarts(res.data);
     } catch (err) {
-      console.error("Error fetching users", err);
+      console.error("Error fetching carts:", err);
     }
   };
 
   useEffect(() => {
-    loadUsers();
+    fetchCarts();
   }, []);
 
   return (
-    <div>
-      <h2>All User Carts</h2>
-      <button onClick={loadUsers}>Refresh</button>
+    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
+       
 
-      {users.length === 0 ? (
-        <p>No carts yet. Please add one.</p>
+      <h2>🧾 All Cart Details</h2>
+
+      {carts.length === 0 ? (
+        <p>No carts found. Add some items to get started!</p>
       ) : (
-        users.map((u) => (
+        carts.map((cart) => (
           <div
-            key={u.id}
+            key={cart.id}
             style={{
               border: "1px solid gray",
-              padding: "10px",
-              marginTop: "15px",
-              borderRadius: "8px",
+              borderRadius: "10px",
+              padding: "15px",
+              marginBottom: "15px",
+              backgroundColor: "#f9f9f9",
             }}
           >
-            <h3>{u.name} — Cart ID: {u.id}</h3>
-            <ul>
-              {u.items.map((it, idx) => {
-                const itemInfo = it.itemId
-                  ? it
-                  : { itemId: "unknown", quantity: 0 };
-                return (
-                  <li key={idx}>
-                    {itemInfo.itemId} — Qty: {it.quantity}
-                  </li>
-                );
-              })}
-            </ul>
-            <strong>Total: Rs.{u.total}</strong>
+            <h3>
+              🆔 Cart ID: {cart.id} | 👤 Name: <strong>{cart.name}</strong>
+            </h3>
+
+            {cart.items.length === 0 ? (
+              <p>No items in this cart.</p>
+            ) : (
+              <table
+                border="1"
+                cellPadding="5"
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  marginTop: "10px",
+                }}
+              >
+                <thead>
+                  <tr style={{ backgroundColor: "#ddd" }}>
+                    <th>Item</th>
+                    <th>Quantity</th>
+                    <th>Price (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cart.items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{item.item}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.price}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            <p style={{ fontWeight: "bold", marginTop: "10px" }}>
+              Total Amount: ₹
+              {cart.items.reduce((sum, i) => sum + i.price, 0)}
+            </p>
           </div>
         ))
       )}
     </div>
   );
 }
+
+export default Home;
